@@ -2,6 +2,8 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { Home as HomeIcon } from "lucide-react";
 
 // 解析图片文件名中的坐标信息
 const parseMapCoordinatesFromFilename = (filename: string): { width: number; height: number } | null => {
@@ -88,6 +90,19 @@ export default function MapAnnotationPage() {
   const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null);
   const [cursorPosition, setCursorPosition] = useState<{ x: number; y: number } | null>(null);
   const [highlightedCoordinateIndex, setHighlightedCoordinateIndex] = useState<number | null>(null); // 用于跟踪高亮的坐标点
+  
+  // 回到首页的按钮组件
+  const BackToHomeButton = () => (
+    <div className="mb-6">
+      <Link 
+        href="/"
+        className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors duration-200 text-gray-700 dark:text-gray-200"
+      >
+        <HomeIcon className="w-4 h-4" />
+        <span>回到首页</span>
+      </Link>
+    </div>
+  );
   
   // DOM引用
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -423,9 +438,11 @@ export default function MapAnnotationPage() {
 
           {/* 坐标输入区域 */}
           <section className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6">
-            <h2 className="text-2xl font-semibold text-gray-800 dark:text-white mb-4">
-              坐标输入
-            </h2>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-semibold text-gray-800 dark:text-white">
+                坐标输入
+              </h2>
+            </div>
             
             <div className="space-y-4">
               <div>
@@ -466,9 +483,12 @@ export default function MapAnnotationPage() {
 
           {/* 地图显示和标注区域 */}
           <section className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6">
-            <h2 className="text-2xl font-semibold text-gray-800 dark:text-white mb-4">
-              地图标注 - {selectedMap.name}
-            </h2>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-semibold text-gray-800 dark:text-white">
+                地图标注 - {selectedMap.name}
+              </h2>
+              <BackToHomeButton />
+            </div>
             
             <div className="space-y-4">
               <div className="text-sm text-gray-600 dark:text-gray-300">
