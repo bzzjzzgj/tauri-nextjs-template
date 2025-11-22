@@ -39,21 +39,21 @@ const gameMaps = [
     description: "广阔的沙漠地带，视野开阔但资源稀少"
   },
   {
-    id: "map3",
-    name: "城市地图",
-    image: "/maps/city-map.jpg.svg", 
-    width: 1200,
-    height: 900,
+    id: "guo_jing_351_335",
+    name: "大唐国境",
+    image: "/maps/guo_jing_351_335.png", 
+    width: 351,
+    height: 335,
     description: "现代化城市区域，建筑密集，适合巷战"
   },
   {
-    id: "map4",
-    name: "雪山地图",
-    image: "/maps/snow-mountain-map.jpg.svg",
-    width: 960,
-    height: 720,
-    description: "冰雪覆盖的山脉，地形复杂，视野受限"
-  }
+    id: "jiang_nan_ye_wai",
+    name: "江南野外",
+    image: "/maps/jiang_nan_ye_wai_159_119.png", 
+    width: 159,
+    height: 119,
+    description: "现代化城市区域，建筑密集，适合巷战"
+  },
 ];
 
 // 坐标点类型
@@ -111,7 +111,7 @@ export default function MapAnnotationPage() {
       if (match) {
         const x = parseInt(match[1]);
         const y = parseInt(match[2]);
-        const label = match[3]?.trim() || `点${i + 1}`;
+        const label = match[3]?.trim() || `${Math.floor(i / 5) + 1}-${(i % 5) + 1}`;
         
         // 左下角坐标系验证：x从0到地图宽度，y从0到地图高度
         if (x >= 0 && x <= selectedMap.width && y >= 0 && y <= selectedMap.height) {
