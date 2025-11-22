@@ -61,6 +61,7 @@ interface Coordinate {
   x: number;
   y: number;
   label?: string;
+  visible?: boolean; // 添加visible属性，默认为true
 }
 
 export default function MapAnnotationPage() {
@@ -70,6 +71,7 @@ export default function MapAnnotationPage() {
   const [error, setError] = useState('');
   const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null);
   const [cursorPosition, setCursorPosition] = useState<{ x: number; y: number } | null>(null);
+  const [highlightedCoordinateIndex, setHighlightedCoordinateIndex] = useState<number | null>(null); // 用于跟踪高亮的坐标点
   
   // DOM引用
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -113,7 +115,7 @@ export default function MapAnnotationPage() {
         
         // 左下角坐标系验证：x从0到地图宽度，y从0到地图高度
         if (x >= 0 && x <= selectedMap.width && y >= 0 && y <= selectedMap.height) {
-          parsed.push({ x, y, label });
+          parsed.push({ x, y, label, visible: true }); // 从文本框解析的点默认可见
         } else {
           throw new Error(`第${i + 1}行坐标超出地图范围：(${x}, ${y})，地图尺寸：${selectedMap.width}×${selectedMap.height}`);
         }
@@ -244,6 +246,23 @@ export default function MapAnnotationPage() {
     return;
   };
 
+  // 处理切换坐标点显示/隐藏
+  const handleToggleCoordinateVisibility = (index: number) => {
+    // 更新坐标数组，切换指定索引坐标的visible状态
+    setCoordinates(prev => {
+      const newCoordinates = [...prev];
+      const currentVisible = newCoordinates[index].visible !== false; // 默认为true
+      newCoordinates[index] = {
+        ...newCoordinates[index],
+        visible: !currentVisible
+      };
+      return newCoordinates;
+    });
+    
+    // 注意：文本框内容不需要更新，因为我们只是隐藏/显示点，而不是删除它们
+  };
+
+  // 处理鼠标移动事件（显示坐标）
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!mapImageRef.current || !mapContainerRef.current) return;
     
@@ -321,7 +340,8 @@ export default function MapAnnotationPage() {
       const newCoordinate: Coordinate = {
         x: mapX,
         y: mapY,
-        label: label
+        label: label,
+        visible: true // 新添加的点默认可见
       };
       
       setCoordinates(prev => [...prev, newCoordinate]);
@@ -482,26 +502,39 @@ export default function MapAnnotationPage() {
                     </div>
                   )}
                   
-                  {/* 显示坐标点 */}
-                  {coordinates.map((coord, index) => {
-                    const { leftPercent, topPercent } = getMarkerPosition(coord);
-                    
-                    return (
-                      <div
-                        key={index}
-                        className="absolute w-4 h-4 bg-red-500 border-2 border-white rounded-full cursor-pointer shadow-lg"
-                        style={{ 
-                          left: `calc(${leftPercent}% - 8px)`, 
-                          top: `calc(${topPercent}% - 8px)` 
-                        }}
-                        title={`${coord.label} (${coord.x}, ${coord.y})`}
-                      >
-                        <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded whitespace-nowrap">
-                          {coord.label}
+                  {/* 显示坐标点（只显示visible为true的点） */}
+                  {coordinates
+                    .filter(coord => coord.visible !== false) // 过滤掉隐藏的点
+                    .map((coord, index) => {
+                      const { leftPercent, topPercent } = getMarkerPosition(coord);
+                      const isHighlighted = highlightedCoordinateIndex === index;
+                      
+                      return (
+                        <div
+                          key={index}
+                          className={`absolute w-4 h-4 rounded-full cursor-pointer shadow-lg ${
+                            isHighlighted 
+                              ? 'bg-yellow-500 border-2 border-white scale-125' 
+                              : 'bg-red-500 border-2 border-white'
+                          }`}
+                          style={{ 
+                            left: `calc(${leftPercent}% - 8px)`, 
+                            top: `calc(${topPercent}% - 8px)` 
+                          }}
+                          title={`${coord.label} (${coord.x}, ${coord.y})`}
+                          onMouseEnter={() => setHighlightedCoordinateIndex(index)}
+                          onMouseLeave={() => setHighlightedCoordinateIndex(null)}
+                        >
+                          <div className={`absolute -top-8 left-1/2 transform -translate-x-1/2 text-xs px-2 py-1 rounded whitespace-nowrap ${
+                            isHighlighted 
+                              ? 'bg-yellow-500 text-black font-bold' 
+                              : 'bg-black text-white'
+                          }`}>
+                            {coord.label}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
                 </div>
               </div>
               
@@ -512,21 +545,60 @@ export default function MapAnnotationPage() {
                     标注位置列表
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                    {coordinates.map((coord, index) => (
-                      <div 
-                        key={index}
-                        className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600"
-                      >
-                        <div className="flex justify-between items-center">
-                          <span className="font-medium text-gray-800 dark:text-white">
-                            {coord.label}
-                          </span>
-                          <span className="text-sm text-gray-600 dark:text-gray-400 font-mono">
-                            ({coord.x}, {coord.y})
-                          </span>
+                    {coordinates.map((coord, index) => {
+                      const isVisible = coord.visible !== false;
+                      const isHighlighted = highlightedCoordinateIndex === index;
+                      return (
+                        <div 
+                          key={index}
+                          className={`p-3 rounded-lg border flex justify-between items-center ${
+                            isHighlighted
+                              ? "ring-2 ring-yellow-500 ring-opacity-50"
+                              : ""
+                          } ${
+                            isVisible 
+                              ? "bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600" 
+                              : "bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-500 opacity-60"
+                          }`}
+                          onMouseEnter={() => setHighlightedCoordinateIndex(index)}
+                          onMouseLeave={() => setHighlightedCoordinateIndex(null)}
+                        >
+                          <div className="flex items-center">
+                            <span className={`font-medium ${
+                              isVisible 
+                                ? "text-gray-800 dark:text-white" 
+                                : "text-gray-500 dark:text-gray-400"
+                            } ${
+                              isHighlighted
+                                ? "text-yellow-600 dark:text-yellow-400 font-bold"
+                                : ""
+                            }`}>
+                              {coord.label}
+                            </span>
+                            <span className={`text-sm font-mono ml-2 ${
+                              isVisible 
+                                ? "text-gray-600 dark:text-gray-400" 
+                                : "text-gray-500 dark:text-gray-500"
+                            } ${
+                              isHighlighted
+                                ? "text-yellow-600 dark:text-yellow-400 font-bold"
+                                : ""
+                            }`}>
+                              ({coord.x}, {coord.y})
+                            </span>
+                          </div>
+                          <Button 
+                            onClick={() => handleToggleCoordinateVisibility(index)}
+                            variant="outline"
+                            size="sm"
+                            className="ml-2 h-8 w-8 p-0"
+                          >
+                            <span className="sr-only">{isVisible ? "隐藏" : "显示"}</span>
+                            {isVisible ? "×" : "○"}
+                          </Button>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
