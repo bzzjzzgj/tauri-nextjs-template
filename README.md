@@ -42,6 +42,8 @@ After cloning for the first time, change your app identifier inside
 }
 ```
 
+For detailed explanations of each configuration option in `tauri.conf.json`, please refer to [TAURI_CONFIG.md](TAURI_CONFIG.md).
+
 To develop and run the frontend in a Tauri window:
 
 ```shell
