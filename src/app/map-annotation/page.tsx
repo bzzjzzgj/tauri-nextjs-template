@@ -115,28 +115,43 @@ export default function MapAnnotationPage() {
 
   // 解析坐标输入
   const parseCoordinates = useCallback((input: string): Coordinate[] => {
+    // 先按行分割，然后将每行按空格分割，得到所有的坐标项
     const lines = input.trim().split('\n').filter(line => line.trim());
+    const coordinateItems: string[] = [];
+    
+    for (const line of lines) {
+      // 如果一行中有空格分隔的坐标，则按空格分割
+      if (line.includes(' ') && !line.includes('(')) {
+        const items = line.trim().split(/\s+/);
+        coordinateItems.push(...items);
+      } else {
+        // 否则整行作为一个坐标项处理
+        coordinateItems.push(line.trim());
+      }
+    }
+    
     const parsed: Coordinate[] = [];
     
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].trim();
+    for (let i = 0; i < coordinateItems.length; i++) {
+      const item = coordinateItems[i].trim();
       
       // 支持多种格式：x,y 或 x,y,label 或 (x,y) 或 (x,y,label)
-      const match = line.match(/^[\\(]?(\d+)[,\s]+(\d+)[\\)]?(?:[,\s]+([^,]+))?$/);
+      const match = item.match(/^[\\(]?(\d+)[,\s]+(\d+)[\\)]?(?:[,\s]+([^,]+))?$/);
       
       if (match) {
         const x = parseInt(match[1]);
         const y = parseInt(match[2]);
+        // 对于空格分隔的格式，如果没有标签，则自动生成标签
         const label = match[3]?.trim() || `${Math.floor(i / 5) + 1}-${(i % 5) + 1}`;
         
         // 左下角坐标系验证：x从0到地图宽度，y从0到地图高度
         if (x >= 0 && x <= selectedMap.width && y >= 0 && y <= selectedMap.height) {
           parsed.push({ x, y, label, visible: true }); // 从文本框解析的点默认可见
         } else {
-          throw new Error(`第${i + 1}行坐标超出地图范围：(${x}, ${y})，地图尺寸：${selectedMap.width}×${selectedMap.height}`);
+          throw new Error(`第${i + 1}个坐标超出地图范围：(${x}, ${y})，地图尺寸：${selectedMap.width}×${selectedMap.height}`);
         }
       } else {
-        throw new Error(`第${i + 1}行格式错误："${line}"`);
+        throw new Error(`第${i + 1}个坐标格式错误："${item}"`);
       }
     }
     
