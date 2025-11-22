@@ -54,6 +54,22 @@ const gameMaps = [
     height: 119,
     description: "现代化城市区域，建筑密集，适合巷战"
   },
+  {
+    id: "nv_er_cun",
+    name: "女儿村",
+    image: "/maps/nv_er_cun_127_143.png", 
+    width: 127,
+    height: 143,
+    description: "现代化城市区域，建筑密集，适合巷战"
+  },
+  {
+    id: "hua_guo_shan_159_119",
+    name: "花果山",
+    image: "/maps/hua_guo_shan_159_119.png", 
+    width: 159,
+    height: 119,
+    description: "现代化城市区域，建筑密集，适合巷战"
+  },
 ];
 
 // 坐标点类型
@@ -504,14 +520,17 @@ export default function MapAnnotationPage() {
                   
                   {/* 显示坐标点（只显示visible为true的点） */}
                   {coordinates
-                    .filter(coord => coord.visible !== false) // 过滤掉隐藏的点
-                    .map((coord, index) => {
+                    .map((coord, originalIndex) => {
+                      // 只显示可见的点
+                      if (coord.visible === false) return null;
+                      
                       const { leftPercent, topPercent } = getMarkerPosition(coord);
-                      const isHighlighted = highlightedCoordinateIndex === index;
+                      // 使用原始索引来匹配高亮状态
+                      const isHighlighted = highlightedCoordinateIndex === originalIndex;
                       
                       return (
                         <div
-                          key={index}
+                          key={originalIndex}
                           className={`absolute w-4 h-4 rounded-full cursor-pointer shadow-lg ${
                             isHighlighted 
                               ? 'bg-yellow-500 border-2 border-white scale-125' 
@@ -521,8 +540,8 @@ export default function MapAnnotationPage() {
                             left: `calc(${leftPercent}% - 8px)`, 
                             top: `calc(${topPercent}% - 8px)` 
                           }}
-                          title={`${coord.label} (${coord.x}, ${coord.y})`}
-                          onMouseEnter={() => setHighlightedCoordinateIndex(index)}
+                          title={`${coord.label} (${coord.x}, {coord.y})`}
+                          onMouseEnter={() => setHighlightedCoordinateIndex(originalIndex)}
                           onMouseLeave={() => setHighlightedCoordinateIndex(null)}
                         >
                           <div className={`absolute -top-8 left-1/2 transform -translate-x-1/2 text-xs px-2 py-1 rounded whitespace-nowrap ${
@@ -534,7 +553,8 @@ export default function MapAnnotationPage() {
                           </div>
                         </div>
                       );
-                    })}
+                    })
+                    .filter(Boolean)}
                 </div>
               </div>
               
@@ -544,7 +564,7 @@ export default function MapAnnotationPage() {
                   <h3 className="text-lg font-medium text-gray-800 dark:text-white mb-2">
                     标注位置列表
                   </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
                     {coordinates.map((coord, index) => {
                       const isVisible = coord.visible !== false;
                       const isHighlighted = highlightedCoordinateIndex === index;
