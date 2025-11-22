@@ -286,6 +286,12 @@ export default function MapAnnotationPage() {
     event.preventDefault();
     event.stopPropagation();
     
+    // 限制最多只能有20个点
+    if (coordinates.length >= 20) {
+      setError("最多只能标注20个位置");
+      return;
+    }
+    
     const containerRect = mapContainerRef.current.getBoundingClientRect();
     const imageDisplayRect = getImageDisplayRect(containerRect);
     
@@ -307,16 +313,21 @@ export default function MapAnnotationPage() {
       // Y坐标转换：从DOM的上方为0转换为地图的下方为0
       const mapY = Math.round((imageDisplayRect.height - relativeY) * scaleY);
       
+      // 计算格子坐标（5列4行）
+      const rowIndex = Math.floor(coordinates.length / 5) + 1;  // 行号（1-4）
+      const colIndex = (coordinates.length % 5) + 1;           // 列号（1-5）
+      const label = `${rowIndex}-${colIndex}`;
+      
       const newCoordinate: Coordinate = {
         x: mapX,
         y: mapY,
-        label: `点击点${coordinates.length + 1}`
+        label: label
       };
       
       setCoordinates(prev => [...prev, newCoordinate]);
       
       // 更新文本框内容
-      const newLine = `${mapX},${mapY},点击点${coordinates.length + 1}`;
+      const newLine = `${mapX},${mapY},${label}`;
       setCoordinatesInput(prev => prev ? `${prev}\n${newLine}` : newLine);
     }
   };
