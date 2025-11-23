@@ -123,3 +123,22 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* 透明窗口样式 */
+.transparent-window {
+  background: transparent !important;
+}
+
+.transparent-window body {
+  background: rgba(0, 0, 0, 0.3) !important;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.transparent-window .content-area {
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 10px;
+  padding: 20px;
+  margin: 20px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}

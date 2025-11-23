@@ -132,14 +132,38 @@ pub fn run() {
             // 监听热键事件 - on_shortcut 会自动注册热键
             let app_handle_clone = app_handle.clone();
             let result = app.global_shortcut().on_shortcut("Alt+Control+D", move |_app, _shortcut, _state| {
-                // 当热键被按下时，直接显示对话框
+                // 当热键被按下时，切换窗口状态
                 println!("Hotkey Alt+Ctrl+D triggered!");
                 let app_handle_inner = app_handle_clone.clone();
                 tauri::async_runtime::spawn(async move {
-                    // 使用对话框插件显示消息
-                    println!("Attempting to show dialog...");
-                    app_handle_inner.dialog().message("OK - Alt+Ctrl+D 热键已触发！");
-                    println!("Dialog message called successfully");
+                    // 获取主窗口
+                    if let Some(window) = app_handle_inner.get_webview_window("main") {
+                        println!("Attempting to toggle window state...");
+                        
+                        // 切换全屏状态
+                        let is_fullscreen = window.is_fullscreen().unwrap_or(false);
+                        if is_fullscreen {
+                            // 如果已经是全屏，则恢复普通状态
+                            let _ = window.set_fullscreen(false);
+                            let _ = window.set_decorations(true);
+                            let _ = window.set_always_on_top(false);
+                            // 移除透明窗口样式
+                            let _ = window.eval("document.documentElement.classList.remove('transparent-window');");
+                            println!("Window restored to normal state");
+                        } else {
+                            // 如果未全屏，则设置为全屏透明置顶无边框
+                            let _ = window.set_fullscreen(true);
+                            let _ = window.set_decorations(false);
+                            let _ = window.set_always_on_top(true);
+                            // 添加透明窗口样式
+                            let _ = window.eval("document.documentElement.classList.add('transparent-window');");
+                            println!("Window set to fullscreen, transparent, always-on-top, and borderless");
+                        }
+                        
+                        println!("Window state toggled successfully");
+                    } else {
+                        println!("Main window not found");
+                    }
                 });
             });
             
