@@ -8,7 +8,7 @@ import { Home as HomeIcon } from "lucide-react";
 // 解析图片文件名中的坐标信息
 const parseMapCoordinatesFromFilename = (filename: string): { width: number; height: number } | null => {
   // 匹配格式：map_name_x_y.png
-  const match = filename.match(/^([^_]+)_(\d+)_(\d+)\.(png|jpg|jpeg|svg)$/i);
+  const match = /^([^_]+)_(\d+)_(\d+)\.(png|jpg|jpeg|svg)$/i.exec(filename);
   
   if (match) {
     const x = parseInt(match[2]);
@@ -70,6 +70,14 @@ const gameMaps = [
     image: "/maps/hua_guo_shan_159_119.png", 
     width: 159,
     height: 119,
+    description: "现代化城市区域，建筑密集，适合巷战"
+  },
+  {
+    id: "ao_lai_guo_223_150",
+    name: "傲来国",
+    image: "/maps/ao_lai_guo_223_150.png", 
+    width: 223,
+    height: 150,
     description: "现代化城市区域，建筑密集，适合巷战"
   },
 ];
@@ -151,13 +159,13 @@ export default function MapAnnotationPage() {
       const item = coordinateItems[i].trim();
       
       // 支持多种格式：x,y 或 x,y,label 或 (x,y) 或 (x,y,label)
-      const match = item.match(/^[\\(]?(\d+)[,\s]+(\d+)[\\)]?(?:[,\s]+([^,]+))?$/);
+      const match = /^[\\(]?(\d+)[,\s]+(\d+)[\\)]?(?:[,\s]+([^,]+))?$/.exec(item);
       
       if (match) {
         const x = parseInt(match[1]);
         const y = parseInt(match[2]);
-        // 对于空格分隔的格式，如果没有标签，则自动生成标签
-        const label = match[3]?.trim() || `${Math.floor(i / 5) + 1}-${(i % 5) + 1}`;
+        // 对于空格分割的格式，如果没有标签，则自动生成标签
+        const label = (match[3] ? match[3].trim() : '') || `${Math.floor(i / 5) + 1}-${(i % 5) + 1}`;
         
         // 左下角坐标系验证：x从0到地图宽度，y从0到地图高度
         if (x >= 0 && x <= selectedMap.width && y >= 0 && y <= selectedMap.height) {
@@ -175,7 +183,7 @@ export default function MapAnnotationPage() {
 
   // 处理坐标输入
   const handleApplyCoordinates = () => {
-    setError(null);
+    setError('');
     
     if (!coordinatesInput.trim()) {
       setError("请输入坐标数据");
@@ -194,15 +202,15 @@ export default function MapAnnotationPage() {
   const handleClearCoordinates = () => {
     setCoordinates([]);
     setCoordinatesInput("");
-    setError(null);
+    setError('');
   };
 
   // 处理地图选择
   const handleMapChange = (mapId: string) => {
-    const map = gameMaps.find(m => m.id === mapId) || gameMaps[0];
+    const map = gameMaps.find(m => m.id === mapId) ?? gameMaps[0];
     setSelectedMap(map);
     setCoordinates([]);
-    setError(null);
+    setError('');
   };
 
 
@@ -420,7 +428,9 @@ export default function MapAnnotationPage() {
             <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
               <select 
                 value={selectedMap.id}
-                onChange={(e) => handleMapChange(e.target.value)}
+                onChange={(e) => {
+                  handleMapChange(e.target.value);
+                }}
                 className="px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white flex-1"
               >
                 {gameMaps.map((map) => (
@@ -451,7 +461,9 @@ export default function MapAnnotationPage() {
                 </label>
                 <textarea
                   value={coordinatesInput}
-                  onChange={(e) => setCoordinatesInput(e.target.value)}
+                  onChange={(e) => {
+                    setCoordinatesInput(e.target.value);
+                  }}
                   placeholder={`例如：\n100,200,资源点\n300,400,BOSS位置\n500,600,隐藏入口`}
                   className="w-full h-32 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white font-mono text-sm"
                 />
@@ -519,7 +531,9 @@ export default function MapAnnotationPage() {
                   onClick={handleImageClick}
                   onMouseDown={handleMouseDown}
                   onMouseUp={handleMouseUp}
-                  onContextMenu={(e) => e.preventDefault()}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                  }}
                 >
                   {/* 地图图片 */}
                   <img
@@ -576,8 +590,12 @@ export default function MapAnnotationPage() {
                             top: `calc(${topPercent}% - 8px)` 
                           }}
                           title={`${coord.label} (${coord.x}, {coord.y})`}
-                          onMouseEnter={() => setHighlightedCoordinateIndex(originalIndex)}
-                          onMouseLeave={() => setHighlightedCoordinateIndex(null)}
+                          onMouseEnter={() => {
+                            setHighlightedCoordinateIndex(originalIndex);
+                          }}
+                          onMouseLeave={() => {
+                            setHighlightedCoordinateIndex(null);
+                          }}
                         >
                           <div className={`absolute -top-8 left-1/2 transform -translate-x-1/2 text-xs px-2 py-1 rounded whitespace-nowrap ${
                             isHighlighted 
@@ -615,8 +633,12 @@ export default function MapAnnotationPage() {
                               ? "bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600" 
                               : "bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-500 opacity-60"
                           }`}
-                          onMouseEnter={() => setHighlightedCoordinateIndex(index)}
-                          onMouseLeave={() => setHighlightedCoordinateIndex(null)}
+                          onMouseEnter={() => {
+                            setHighlightedCoordinateIndex(index);
+                          }}
+                          onMouseLeave={() => {
+                            setHighlightedCoordinateIndex(null);
+                          }}
                         >
                           <div className="flex items-center">
                             <span className={`font-medium ${
@@ -643,7 +665,9 @@ export default function MapAnnotationPage() {
                             </span>
                           </div>
                           <Button 
-                            onClick={() => handleToggleCoordinateVisibility(index)}
+                            onClick={() => {
+                              handleToggleCoordinateVisibility(index);
+                            }}
                             variant="outline"
                             size="sm"
                             className="ml-2 h-8 w-8 p-0"

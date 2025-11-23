@@ -96,7 +96,9 @@ export default function HomePage() {
                   <input
                     type="text"
                     value={asktaoInput}
-                    onChange={(e) => setAsktaoInput(e.target.value)}
+                    onChange={(e) => {
+                      setAsktaoInput(e.target.value);
+                    }}
                     placeholder="Enter input for DLL function"
                     className="flex-1 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
                     disabled={isLoading}
