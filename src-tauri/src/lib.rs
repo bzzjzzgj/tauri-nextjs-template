@@ -4,6 +4,7 @@
 //! It includes:
 //! - `greet`: Returns a greeting with timestamp
 //! - `call_asktao_dll`: Calls the CQ.Asktao.dll library function
+//! - `show_ok_dialog`: Shows an OK dialog when hotkey is pressed
 
 // Standard library imports
 use std::ffi::{CStr, CString};
@@ -12,6 +13,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 // External crate imports
 use libloading::{Library, Symbol};
+use tauri::{AppHandle, Manager};
+use tauri_plugin_dialog::DialogExt;
+use tauri_plugin_global_shortcut::GlobalShortcutExt;
 
 /// Generates a greeting message with current timestamp
 ///
@@ -94,16 +98,59 @@ fn call_asktao_dll(input: String) -> Result<String, String> {
     Ok(result_str)
 }
 
+/// Shows an OK dialog when the hotkey is pressed
+///
+/// This function is called when the Alt+Ctrl+D hotkey is pressed
+/// and displays a simple OK dialog to the user.
+#[tauri::command]
+fn show_ok_dialog(app_handle: AppHandle) -> Result<(), String> {
+    // 使用 Tauri 对话框插件显示确认对话框
+    app_handle.dialog().message("OK - Alt+Ctrl+D 热键已触发！");
+    
+    Ok(())
+}
+
 /// Main entry point for the Tauri application
 ///
 /// This function sets up the Tauri application with:
 /// - The opener plugin
-/// - Command handlers for greet and call_asktao_dll
+/// - The dialog plugin
+/// - The global shortcut plugin
+/// - Command handlers for greet, call_asktao_dll, and show_ok_dialog
+/// - Global hotkey for Alt+Ctrl+D
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet, call_asktao_dll])
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .invoke_handler(tauri::generate_handler![greet, call_asktao_dll, show_ok_dialog])
+        .setup(|app| {
+            // 注册全局热键 Alt+Ctrl+D
+            let app_handle = app.handle();
+            
+            // 监听热键事件 - on_shortcut 会自动注册热键
+            let app_handle_clone = app_handle.clone();
+            let result = app.global_shortcut().on_shortcut("Alt+Control+D", move |_app, _shortcut, _state| {
+                // 当热键被按下时，直接显示对话框
+                println!("Hotkey Alt+Ctrl+D triggered!");
+                let app_handle_inner = app_handle_clone.clone();
+                tauri::async_runtime::spawn(async move {
+                    // 使用对话框插件显示消息
+                    println!("Attempting to show dialog...");
+                    app_handle_inner.dialog().message("OK - Alt+Ctrl+D 热键已触发！");
+                    println!("Dialog message called successfully");
+                });
+            });
+            
+            if let Err(e) = result {
+                eprintln!("Failed to register hotkey: {}", e);
+            } else {
+                println!("Global hotkey Alt+Ctrl+D registered successfully");
+            }
+            
+            Ok(())
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
