@@ -162,6 +162,13 @@ interface Coordinate {
   visible?: boolean; // 添加visible属性，默认为true
 }
 
+// 图片类型
+interface ClipboardImage {
+  id: string;
+  dataUrl: string;
+  timestamp: number;
+}
+
 export default function MapAnnotationPage() {
   const [selectedMap, setSelectedMap] = useState(gameMaps[0]);
   const [coordinates, setCoordinates] = useState<Coordinate[]>([]);
@@ -170,6 +177,11 @@ export default function MapAnnotationPage() {
   const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null);
   const [cursorPosition, setCursorPosition] = useState<{ x: number; y: number } | null>(null);
   const [highlightedCoordinateIndex, setHighlightedCoordinateIndex] = useState<number | null>(null); // 用于跟踪高亮的坐标点
+  
+  // 图片相关状态
+  const [clipboardImages, setClipboardImages] = useState<ClipboardImage[]>([]);
+  const [isLoadingImages, setIsLoadingImages] = useState(false);
+  const [imageError, setImageError] = useState('');
 
   // 回到首页的按钮组件
   const BackToHomeButton = () => (
@@ -388,6 +400,60 @@ export default function MapAnnotationPage() {
     // 注意：文本框内容不需要更新，因为我们只是隐藏/显示点，而不是删除它们
   };
 
+  // 从剪切板读取图片
+  const handleLoadClipboardImages = async () => {
+    setIsLoadingImages(true);
+    setImageError('');
+    
+    try {
+      // 直接尝试导入Tauri API，如果失败则说明不在Tauri环境中
+      const { invoke } = await import('@tauri-apps/api/core');
+      
+      // 调用Tauri后端API读取剪切板图片
+      const images = await invoke('get_clipboard_images');
+      
+      if (images && Array.isArray(images) && images.length > 0) {
+        const newImages: ClipboardImage[] = images.map((dataUrl: string, index: number) => ({
+          id: `image-${Date.now()}-${index}`,
+          dataUrl,
+          timestamp: Date.now()
+        }));
+        
+        // 限制最多20张图片
+        const imagesToAdd = newImages.slice(0, 20 - clipboardImages.length);
+        setClipboardImages(prev => [...prev, ...imagesToAdd]);
+        
+        if (newImages.length > imagesToAdd.length) {
+          setImageError(`已加载${imagesToAdd.length}张图片，达到最大限制20张`);
+        }
+      } else {
+        setImageError('剪切板中没有找到图片');
+      }
+    } catch (error) {
+      console.error('Failed to load clipboard images:', error);
+      
+      // 根据错误类型显示不同的提示信息
+      if (error instanceof Error && error.message.includes('Cannot find module')) {
+        setImageError('当前不在Tauri环境中，剪切板功能不可用');
+      } else {
+        setImageError(`读取剪切板图片失败: ${error instanceof Error ? error.message : '未知错误'}`);
+      }
+    } finally {
+      setIsLoadingImages(false);
+    }
+  };
+
+  // 删除单张图片
+  const handleRemoveImage = (id: string) => {
+    setClipboardImages(prev => prev.filter(img => img.id !== id));
+  };
+
+  // 清空所有图片
+  const handleClearAllImages = () => {
+    setClipboardImages([]);
+    setImageError('');
+  };
+
   // 处理鼠标移动事件（显示坐标）
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!mapImageRef.current || !mapContainerRef.current) return;
@@ -562,6 +628,92 @@ export default function MapAnnotationPage() {
                   清除所有
                 </Button>
               </div>
+            </div>
+          </section>
+
+          {/* 图片列表区域 */}
+          <section className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-semibold text-gray-800 dark:text-white">
+                微信截图图片列表
+              </h2>
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => void handleLoadClipboardImages()}
+                  disabled={isLoadingImages || clipboardImages.length >= 20}
+                  className="px-4 py-2"
+                >
+                  {isLoadingImages ? '读取中...' : '从剪切板读取'}
+                </Button>
+                {clipboardImages.length > 0 && (
+                  <Button
+                    onClick={handleClearAllImages}
+                    variant="outline"
+                    className="px-4 py-2"
+                  >
+                    清空所有
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              {imageError && (
+                <div className="p-3 bg-yellow-50 dark:bg-yellow-900/30 rounded-lg border border-yellow-200 dark:border-yellow-800">
+                  <p className="text-yellow-700 dark:text-yellow-300 text-sm">{imageError}</p>
+                </div>
+              )}
+
+              {clipboardImages.length === 0 ? (
+                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                  <p className="text-lg mb-2">📋 剪切板图片列表</p>
+                  <p className="text-sm">点击&quot;从剪切板读取&quot;按钮加载微信截图图片</p>
+                  <p className="text-xs mt-2">支持最多20张图片，一行显示5张</p>
+                </div>
+              ) : (
+                <div>
+                  <div className="text-sm text-gray-600 dark:text-gray-300 mb-4">
+                    <p>已加载 {clipboardImages.length} 张图片</p>
+                  </div>
+                  
+                  {/* 图片网格布局 - 一行5张 */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                    {clipboardImages.map((image) => (
+                      <div
+                        key={image.id}
+                        className="relative group bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden border-2 border-gray-200 dark:border-gray-600 hover:border-blue-500 dark:hover:border-blue-400 transition-all duration-200"
+                      >
+                        {/* 图片显示 */}
+                        <img
+                          src={image.dataUrl}
+                          alt="剪切板图片"
+                          className="w-full h-32 object-cover cursor-pointer"
+                          onClick={() => {
+                            // 点击图片可以放大查看
+                            window.open(image.dataUrl, '_blank');
+                          }}
+                        />
+                        
+                        {/* 删除按钮 */}
+                        <button
+                          onClick={() => { handleRemoveImage(image.id); }}
+                          className="absolute top-2 right-2 w-6 h-6 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center text-xs font-bold"
+                          title="删除图片"
+                        >
+                          ×
+                        </button>
+                        
+                        {/* 图片信息 */}
+                        <div className="p-2">
+                          <p className="text-xs text-gray-600 dark:text-gray-400 truncate">
+                            {new Date(image.timestamp).toLocaleTimeString()}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </section>
 
