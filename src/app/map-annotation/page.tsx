@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { Home as HomeIcon } from "lucide-react";
 
+// 注意：OCR识别逻辑已经移到后端API，避免在前端暴露密钥
+
 // 解析图片文件名中的坐标信息
 const parseMapCoordinatesFromFilename = (filename: string): { width: number; height: number } | null => {
   // 匹配格式：map_name_x_y.png
@@ -20,6 +22,28 @@ const parseMapCoordinatesFromFilename = (filename: string): { width: number; hei
   }
 
   return null;
+};
+
+// 从文本中提取地图坐标信息
+// 匹配格式：[坐标]地点名称(x,y)
+const extractMapCoordinatesFromText = (text: string): { location: string; x: number; y: number }[] => {
+  const coordinates: { location: string; x: number; y: number }[] = [];
+  
+  // 匹配所有符合格式的坐标文本
+  const regex = /\[坐标\](.*?)\((\d+),(\d+)\)/g;
+  let match;
+  
+  while ((match = regex.exec(text)) !== null) {
+    const location = match[1].trim();
+    const x = parseInt(match[2], 10);
+    const y = parseInt(match[3], 10);
+    
+    if (!isNaN(x) && !isNaN(y)) {
+      coordinates.push({ location, x, y });
+    }
+  }
+  
+  return coordinates;
 };
 
 // 游戏地图数据
@@ -182,6 +206,123 @@ export default function MapAnnotationPage() {
   const [clipboardImages, setClipboardImages] = useState<ClipboardImage[]>([]);
   const [isLoadingImages, setIsLoadingImages] = useState(false);
   const [imageError, setImageError] = useState('');
+  
+  // OCR相关状态
+  const [isOCRLoading, setIsOCRLoading] = useState(false);
+  const [ocrResults, setOcrResults] = useState<any[]>([]);
+  const [ocrError, setOcrError] = useState('');
+
+  // OCR识别函数
+  const handleOCRRecognition = async () => {
+    setIsOCRLoading(true);
+    setOcrError('');
+    setOcrResults([]);
+    
+    try {
+      // 遍历所有图片，逐个调用OCR API
+      const results = [];
+      
+      for (const image of clipboardImages) {
+        const response = await fetch('/api/ocr', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            imageData: image.dataUrl
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (!result.success) {
+          throw new Error(result.error || 'OCR识别失败');
+        }
+        
+        // 提取OCR识别到的所有文本
+        const allText = (result.data.TextDetections || []).map(item => item.DetectedText || '').join('\n');
+        
+        // 从识别文本中提取符合格式的坐标信息：[坐标]地点名称(x,y)
+        const extractedCoordinates = extractMapCoordinatesFromText(allText);
+        
+        results.push({
+          imageId: image.id,
+          data: result.data,
+          coordinates: result.coordinates || [],
+          extractedCoordinates: extractedCoordinates, // 保存提取到的格式化坐标
+          timestamp: Date.now()
+        });
+      }
+      
+      setOcrResults(results);
+      
+      // 将提取到的坐标信息添加到地图标注点
+      const allCoordinates = results.flatMap(result => 
+        [...result.extractedCoordinates.map(coord => ({
+          x: coord.x,
+          y: coord.y,
+          label: coord.location || `坐标点${results.length + 1}`
+        }))]
+      );
+      
+      if (allCoordinates.length > 0) {
+        // 限制最多只能添加20个坐标点
+        const coordinatesToAdd = allCoordinates.slice(0, 20 - coordinates.length);
+        setCoordinates(prev => [...prev, ...coordinatesToAdd]);
+        
+        if (allCoordinates.length > coordinatesToAdd.length) {
+          setOcrError(`已达到最大标注点数量限制(20个)，仅添加了${coordinatesToAdd.length}个坐标点`);
+        }
+      }
+      
+    } catch (error) {
+      setOcrError(error instanceof Error ? error.message : 'OCR识别失败');
+    } finally {
+      setIsOCRLoading(false);
+    }
+  };
+
+  // 处理手动输入的坐标文本提取
+  const handleManualCoordinateExtraction = () => {
+    const textarea = document.getElementById('manualCoordinates') as HTMLTextAreaElement;
+    if (!textarea) return;
+    
+    const text = textarea.value.trim();
+    if (!text) {
+      setError("请输入包含坐标的文本");
+      return;
+    }
+    
+    try {
+      const extractedCoordinates = extractMapCoordinatesFromText(text);
+      if (extractedCoordinates.length === 0) {
+        setError("未从文本中提取到坐标信息，请检查格式是否为[坐标]地点名称(x,y)");
+        return;
+      }
+      
+      // 将提取到的坐标转换为Coordinate格式
+      const newCoordinates = extractedCoordinates.map(coord => ({
+        x: coord.x,
+        y: coord.y,
+        label: coord.location || `坐标点${coordinates.length + 1}`
+      }));
+      
+      // 限制最多20个点
+      const coordinatesToAdd = newCoordinates.slice(0, 20 - coordinates.length);
+      setCoordinates(prev => [...prev, ...coordinatesToAdd]);
+      
+      if (newCoordinates.length > coordinatesToAdd.length) {
+        setError(`已达到最大标注点数量限制(20个)，仅添加了${coordinatesToAdd.length}个坐标点`);
+      } else {
+        setError('');
+      }
+      
+      // 清空文本域
+      textarea.value = '';
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "提取坐标时发生错误");
+    }
+  };
 
   // 回到首页的按钮组件
   const BackToHomeButton = () => (
@@ -631,6 +772,8 @@ export default function MapAnnotationPage() {
             </div>
           </section>
 
+
+
           {/* 图片列表区域 */}
           <section className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6">
             <div className="flex justify-between items-center mb-4">
@@ -654,6 +797,14 @@ export default function MapAnnotationPage() {
                     清空所有
                   </Button>
                 )}
+                <Button
+                  variant="default"
+                  onClick={() => void handleOCRRecognition()}
+                  disabled={clipboardImages.length === 0 || isOCRLoading}
+                  className="px-4 py-2"
+                >
+                  {isOCRLoading ? '识别中...' : 'OCR识别'}
+                </Button>
               </div>
             </div>
 
@@ -716,6 +867,134 @@ export default function MapAnnotationPage() {
               )}
             </div>
           </section>
+
+          {/* 手动输入坐标文本区域 */}
+          <section className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 mt-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-semibold text-gray-800 dark:text-white">
+                手动输入坐标文本
+              </h2>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  坐标格式：[坐标]地点名称(x,y)（每行一个坐标）
+                </label>
+                <textarea
+                  id="manualCoordinates"
+                  placeholder="例如：
+[坐标]普陀山(48,26)
+[坐标]五台山(120,80)"
+                  className="w-full h-32 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white font-mono text-sm"
+                />
+              </div>
+
+              <button
+                onClick={handleManualCoordinateExtraction}
+                className="mt-3 bg-green-600 hover:bg-green-700 text-white font-medium py-3 px-8 rounded-xl transition duration-200 transform hover:scale-105"
+              >
+                提取坐标
+              </button>
+            </div>
+          </section>
+
+          {/* OCR识别结果区域 */}
+          {ocrResults.length > 0 && (
+            <section className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 mt-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-semibold text-gray-800 dark:text-white">
+                  OCR识别结果
+                </h2>
+              </div>
+
+              <div className="space-y-6">
+                {ocrResults.map((result, index) => (
+                  <div key={result.imageId} className="bg-gray-50 dark:bg-gray-700 rounded-xl p-5 border border-gray-200 dark:border-gray-600">
+                    <h3 className="text-lg font-medium text-gray-800 dark:text-white mb-3">
+                      图片 {index + 1} 识别结果
+                    </h3>
+
+                    {/* 显示从格式化文本中提取的坐标信息 */}
+                    {result.extractedCoordinates.length > 0 ? (
+                      <div className="space-y-3">
+                        <h4 className="text-sm font-medium text-gray-600 dark:text-gray-300 text-green-600 dark:text-green-400">
+                          从格式化文本中提取的坐标：[坐标]地点名称(x,y)
+                        </h4>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {result.extractedCoordinates.map((coord, coordIndex) => (
+                            <div key={coordIndex} className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-green-200 dark:border-green-600">
+                              <p className="text-sm font-medium text-gray-800 dark:text-white mb-2">
+                                地点：
+                              </p>
+                              <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                                {coord.location}
+                              </p>
+                              <div className="grid grid-cols-2 gap-2 text-xs text-gray-500 dark:text-gray-500">
+                                <div>
+                                  <span className="font-medium">坐标：</span>
+                                  ({coord.x}, {coord.y})
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : result.coordinates.length > 0 ? (
+                      <div className="space-y-3">
+                        <h4 className="text-sm font-medium text-gray-600 dark:text-gray-300">
+                          原始OCR坐标信息：
+                        </h4>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {result.coordinates.map((coord, coordIndex) => (
+                            <div key={coordIndex} className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-600">
+                              <p className="text-sm font-medium text-gray-800 dark:text-white mb-2">
+                                识别文本：
+                              </p>
+                              <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                                {coord.text}
+                              </p>
+                              <div className="grid grid-cols-2 gap-2 text-xs text-gray-500 dark:text-gray-500">
+                                <div>
+                                  <span className="font-medium">坐标：</span>
+                                  ({coord.x}, {coord.y})
+                                </div>
+                                <div>
+                                  <span className="font-medium">尺寸：</span>
+                                  {coord.width} × {coord.height}
+                                </div>
+                                <div>
+                                  <span className="font-medium">置信度：</span>
+                                  {Math.round(coord.confidence * 100)}%
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-gray-500 dark:text-gray-400">
+                        未识别到可提取的坐标信息
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* OCR错误信息 */}
+          {ocrError && (
+            <section className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 mt-6">
+              <div className="p-4 bg-red-50 dark:bg-red-900/30 rounded-lg border border-red-200 dark:border-red-800">
+                <p className="text-red-700 dark:text-red-300 text-sm">
+                  OCR识别错误：{ocrError}
+                </p>
+              </div>
+            </section>
+          )}
 
           {/* 地图显示和标注区域 */}
           <section className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6">
